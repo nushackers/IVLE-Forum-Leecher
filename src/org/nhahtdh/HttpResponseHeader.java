@@ -12,7 +12,7 @@ public class HttpResponseHeader {
 	 * 1 - Processed data
 	 * 2 - HashMap
 	 */
-	private static final boolean debug[] = {true, false, false};
+	private static final boolean debug[] = {false, false, false};
 	
 	//--------------
 	// Constants

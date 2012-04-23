@@ -36,7 +36,7 @@ class HttpClient {
 	public static final String HTTP_HEADER_CHARSET = "US-ASCII";
 	private static final String GET_METHOD = "GET";
 	private static final String POST_METHOD = "POST";
-	private static final String DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.2.8) Gecko/20100722 Firefox/3.6.8 (.NET CLR 3.5.30729)";
+	private static final String DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; rv:11.0) Gecko/20100101 Firefox/11.0";
 	private static final int MAX_REDIRECTION = 5;
 	private static final String DEFAULT_FILE_NAME = "default_named.html";
 	private static final String INVALID_WINDOWS_FILE_NAME_CHARACTER_SET = "/\\\\:\\*\\?\"<>"; 
@@ -337,7 +337,9 @@ class HttpClient {
 				// Throw exception for the rest of the statuses.
 				// Unimplemented statuses are listed under
 				// _UNIMPLEMENTED_STATUSES comment
-				throw new SocketException(statusCode + " " + this.responseHeaderParser.getReason());
+				System.err.println(this.URL + ": " + statusCode + " " + this.responseHeaderParser.getReason());
+				return null;
+				// throw new SocketException(statusCode + " " + this.responseHeaderParser.getReason());
 			}
 		}
 		
@@ -530,7 +532,7 @@ class HttpClient {
 	
 		// Write file to disk
 		if (debug[0] && writeToDisk)
-			System.out.println("\n" + this.fileName + " is being downloaded. Please wait.");
+			System.out.println("\n" + this.URL + " is being downloaded to " + this.fileName + ". Please wait.");
 	
 		File outFile = null;
 		FileOutputStream toFile = null;

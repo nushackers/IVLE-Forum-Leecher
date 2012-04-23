@@ -3,6 +3,7 @@ package org.nhahtdh;
 import java.io.*;
 import java.util.*;
 import java.net.*;
+
 import org.htmlparser.*;
 import org.htmlparser.util.*;
 import org.htmlparser.nodes.*;
@@ -20,13 +21,15 @@ public class ForumLeecher {
 	 * 2 - set folder
 	 * 3 - download
 	 */
-	private static final boolean debug[] = {false, false, false, true};
+	private static final boolean debug[] = {false, false, false, false};
 
 	//--------------
 	// Constants
 	//--------------
 	private static final String DISPLAY_POST_REGEX = "displayPost\\('[-0-9a-f]+'.*\\).*";
 	private static final String FORUM_ID_REGEX = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+	private static final String HEADING_ID_REGEX = FORUM_ID_REGEX;
+	private static final String POST_ID_REGEX = FORUM_ID_REGEX;
 	private static final String ATTACHMENT_REGEX = "/forum/download_file\\.aspx.*";
 	
 	private static final String IVLE_ADDRESS = "https://ivle.nus.edu.sg/";
@@ -89,7 +92,23 @@ public class ForumLeecher {
 			while (!frameLinks.isEmpty()) {
 				link = frameLinks.remove();
 				client.setURL(FORUM_URI.resolve(link).toString(), true);
-				receivedFile = client.download(null);
+				
+				if (link.matches(".*board_topic\\.aspx.*")) {
+					if (debug[3] && !link.contains("headingid")) {
+						System.err.println("Bad board_topic link: " + link);
+					}
+					String headingId = link.replaceFirst(".*headingid=(" + HEADING_ID_REGEX + ").*", "$1");
+					receivedFile = client.download("H" + headingId + ".html");
+				} else if (link.matches(".*board_read\\.aspx.*")) {
+					if (debug[3] && !link.contains("postid")) {
+						System.err.println("Bad board_read link: " + link);
+					}
+					String postId = link.replaceFirst(".*postid=(" + POST_ID_REGEX + ").*", "$1");
+					receivedFile = client.download("P" + postId + ".html");
+				} else {
+					receivedFile = client.download(null);
+				}
+				
 				if (link.matches(".*menu\\.aspx.*")) {
 					// If the links points to menu.aspx
 					// Check for the existence of forum archive.
@@ -121,7 +140,43 @@ public class ForumLeecher {
 						client.setURL(FORUM_ADDRESS + pageName + "?forumid=" + forumId + "&currpage=" + i, true);
 						receivedFile = client.download(null);
 					}
-				} 
+				} else if (link.matches(".*board_heading\\.aspx.*")) {
+					// TODO: How about many pages?
+					
+					// Download the tree structure and individual postings
+					frameLinks.add("list.aspx?forumid=" + forumId);
+					
+					frameLinks.addAll(parseLinks(receivedFile, new TagNameFilter("a"), "href", ".*board_topic\\.aspx.*"));
+				} else if (link.matches(".*board_topic\\.aspx.*")) {
+					// TODO: Multiple pages of topics 
+					
+					frameLinks.addAll(parseLinks(receivedFile, new TagNameFilter("a"), "href", ".*board_read\\.aspx.*"));
+				} else if (link.matches(".*board_read\\.aspx.*")) {
+					// TODO: Multiple pages of messages
+					
+					/*
+					LinkedList<String> tll0;
+					
+					// Add image links.
+					// TODO: Prevent images from the same source to be re-downloaded
+					listLinks.addAll(tll0 = parseLinks(receivedFile, new TagNameFilter("img"), "src", null), 1);
+					if (debug[3]) {
+						if (tll0.size() > 0) {
+							System.out.println("Found " + tll0.size() + " image(s).");
+							System.out.println(tll0);
+						}
+					}
+					
+					// Add attachment link.
+					listLinks.addAll(tll0 = parseLinks(receivedFile, new TagNameFilter("a"), "href", ATTACHMENT_REGEX), 1);
+					if (debug[3]) {
+						if (tll0.size() > 0) {
+							System.out.println("Found " + tll0.size() + " attachment(s).");
+							System.out.println(tll0);
+						}
+					}
+					*/
+				}
 				// If the link points to menu_archive.aspx or main(_archive).aspx, just download the page. 
 			}
 			//--------------------------------
@@ -186,8 +241,16 @@ public class ForumLeecher {
 				setCurrentWorkingDir(currentWorkingDir + "extra/", client, false);
 				while ((link = listLinks.poll()) != null) {
 					// resolve: If ts0 is absolute, return ts0; otherwise return ts0 after resolve against FORUM_URI
-					client.setURL(FORUM_URI.resolve(link).toString(), true); 
+					try {
+						client.setURL(FORUM_URI.resolve(link).toString(), true);
+					} catch (Exception e) {
+						e.printStackTrace();
+						continue;
+					}
 					receivedFile = client.download(null);
+					if (receivedFile == null) {
+						continue;
+					}
 					if (debug[3])
 						System.out.println("Downloaded file: " + receivedFile.getName());
 				}
@@ -254,7 +317,7 @@ public class ForumLeecher {
 			"__LASTFOCUS=&" + 
 			"__EVENTTARGET=&" + 
 			"__EVENTARGUMENT=&" +
-			"__VIEWSTATE=%2FwEPDwULLTE0Njg4NTU2MDhkGAEFHl9fQ29udHJvbHNSZXF1aXJlUG9zdEJhY2tLZXlfXxYCBQ9jdGwwMCRsb2dpbmltZzEFE2N0bDAwJGNoa1JlbWVtYmVyTWU%3D&" + 
+			"__VIEWSTATE=%2FwEPDwUJMzUwNDA2NjM1ZBgBBR5fX0NvbnRyb2xzUmVxdWlyZVBvc3RCYWNrS2V5X18WAgUPY3RsMDAkbG9naW5pbWcxBRNjdGwwMCRjaGtSZW1lbWJlck1l" + "&" +
 			"__SCROLLPOSITIONX=0&" +
 			"__SCROLLPOSITIONY=0&" +
 			"ctl00%24userid=" + username + "&" +
@@ -262,8 +325,8 @@ public class ForumLeecher {
 			// Assume domain is NUSSTU
 			"ctl00%24domain=NUSSTU&" +
 			// _TODO: Read the dimension from default.aspx instead of hard-coding.
-			"ctl00%24loginimg1.x=" + (int) (Math.random() * 74) + "&" +
-			"ctl00%24loginimg1.y=" + (int) (Math.random() * 11);
+			"ctl00%24loginimg1.x=0" + "&" +
+			"ctl00%24loginimg1.y=0";
 		client.setURL(IVLE_ADDRESS, true);
 		File receivedFile = client.request("POST", upData, null);
 		receivedFile.delete();
@@ -311,9 +374,16 @@ public class ForumLeecher {
 				if (debug[1])
 					System.out.println("Node " + i + " has " + attribName + " attribute: " + ts0);
 				// If there is a regexFilter then we must match the entry against it.
-				if (regexAttribValue == null || ts0.matches(regexAttribValue))
-					// Decode HTML coding of the URL and add the URL to the list. 
-					links.offer(decodeHtml(ts0));
+				if (regexAttribValue == null || ts0.matches(regexAttribValue)) {
+					if (debug[1])
+						System.out.println(decodeHtml(ts0));
+					
+					// Decode HTML coding of the URL and add the URL to the list.
+					// We will prevent the same link to appear twice
+					String decodedURL = decodeHtml(ts0);
+					if (!links.contains(decodedURL))
+						links.offer(decodedURL);
+				}
 			}
 		}
 		return links;

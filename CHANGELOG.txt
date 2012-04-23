@@ -1,0 +1,9 @@
+CHANGELOG
+Forum Leecher
+
+Version 0.8.1
+- Fix compatibility issue with recent IVLE update.
+- Added initial support for board forum.
+
+Version 0.8
+- Initial release of Forum Leecher.
